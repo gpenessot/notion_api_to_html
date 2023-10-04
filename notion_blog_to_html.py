@@ -3,7 +3,7 @@
 import configparser
 from notion_client import Client
 from datetime import datetime as dt
-from jinja2 import Template, Environment, FileSystemLoader
+from jinja2 import Environment, FileSystemLoader
 
 config=configparser.ConfigParser()
 config.read('config.cfg')
@@ -12,17 +12,70 @@ NOTION_TOKEN = config['NOTION']['TOKEN']
 DATABASE_ID = config['NOTION']['DATABASE_ID']
 
 def read_text(client, page_id):
-    response = client.blocks.children.list(block_id=page_id)
-    return response['results']
+    """
+    Reads text from a client using the provided page ID.
+
+    Args:
+        client (object): The client object used to make requests.
+        page_id (str): The ID of the page to retrieve text from.
+
+    Returns:
+        list: The list of text results from the client.
+
+    Raises:
+        Exception: If an error occurs while making a request to the client.
+    """
+    try:
+        response = client.blocks.children.list(block_id=page_id)
+        return response['results']
+    except Exception as e:
+        print(f"Error occurred while making a request to the client: {e}")
+        return []
 
 def read_database(client, database_id):
-    response = client.databases.query(database_id=database_id)
-    return response['results']
+    """
+    Queries a Notion database using the provided client and database ID.
+
+    Args:
+        client (object): The client object used to connect to the Notion API.
+        database_id (str): The ID of the database to query.
+
+    Returns:
+        list: The list of database records returned by the query. Each record is a dictionary containing the properties of the record.
+    """
+    try:
+        response = client.databases.query(database_id=database_id)
+        # Extract the 'results' field from the API response
+        results = response['results']
+        return results
+    except Exception as e:
+        print(f"An error occurred: {e}")
+        return []
+        return response['results']
+    except Exception as e:
+        print(f"An error occurred while querying the database: {e}")
+        return []
 
 def get_info_from_database(client, notion_database_id, article_id=0):
+    """
+    Retrieves information from a Notion database and formats it into a list of HTML content.
+
+    Args:
+        client (Notion client object): The Notion client object used to access the database.
+        notion_database_id (str): The ID of the Notion database.
+        article_id (int, optional): The index of the article in the database. Default is 0.
+
+    Returns:
+        tuple: A tuple containing the following elements:
+            - date (str): The date of the article.
+            - keywords (list): The keywords associated with the article.
+            - titre_article (str): The title of the article.
+            - description (str): The description of the article.
+            - html_content_list (list): A list of HTML-formatted content blocks from the article.
+    """
     database_content = read_database(client, notion_database_id)
-    article_page_id = database_content[article_id]['properties']['URL']['url'].split('-')[-1].split('?')[0]
     
+    article_page_id = database_content[article_id]['properties']['URL']['url'].split('-')[-1].split('?')[0]
     date = database_content[article_id]['properties']['Date']['date']['start']
     keywords = [i['name'] for i in database_content[article_id]['properties']['Étiquettes']['multi_select']]
     titre_article = database_content[article_id]['properties']['Nom']['title'][0]['text']['content']
@@ -60,6 +113,30 @@ def get_info_from_database(client, notion_database_id, article_id=0):
     return date, keywords, titre_article, description, html_content_list
 
 def main():
+    """
+    Connects to a Notion database and retrieves information to render a blog template.
+
+    Inputs:
+    - NOTION_TOKEN: The authentication token required to connect to the Notion database.
+    - DATABASE_ID: The ID of the Notion database from which the information will be retrieved.
+    - blog_template.html: The blog template to fill with notion blog content
+    
+    Outputs:
+    - blog.html: A file containing the rendered template with the retrieved information.
+
+    Example Usage:
+    main()
+
+    Code Analysis:
+    1. Connect to the Notion database using the provided authentication token.
+    2. Call the get_info_from_database function to retrieve the necessary information from the database.
+    3. Load the Jinja2 template file named "blog_template.html" using the FileSystemLoader.
+    4. Create a context dictionary containing the retrieved information and other variables.
+    5. Open the file "blog.html" in write mode and encode it with UTF-8.
+    6. Write the rendered template to the file using the results_template.render(context) method.
+    7. Print a message indicating that the file has been written.
+    """
+
     client = Client(auth=NOTION_TOKEN)
     date, keywords, titre_article, description, html_content_list = get_info_from_database(client=client, notion_database_id=DATABASE_ID, article_id=0)
     results_filename = "blog.html"
